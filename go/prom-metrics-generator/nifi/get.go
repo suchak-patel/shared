@@ -1,7 +1,7 @@
 package nifi
 
 import (
-        "prom-metrics-generator/logger"
+        "tmomon/logger"
         "io/ioutil"
         "encoding/json"
 		"net/http"

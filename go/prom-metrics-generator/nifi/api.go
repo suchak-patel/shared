@@ -1,7 +1,8 @@
 package nifi
 
 import (
-        "prom-metrics-generator/logger"
+        "tmomon/logger"
+		"tmomon/metrics"
         "encoding/json"
         "strconv"
 )
@@ -96,18 +97,18 @@ func NifiFlowStatus(
 			NIFI_SYNC_FAILURE_VERSIONED_PROCESS_GROUPS = strconv.Itoa(nifiFlowStatus.ControllerStatus.SyncFailureCount)
 	}
 
-	writeMetrics("nifi_cluster_status", "0=UP, 1=DOWN gauge", "gauge", "{ nifi_uri=\""+clusterUrl+"\"}", "{ nifi_uri=\""+clusterUrl+"\"}", NIFI_CLUSTER_STATUS)
-	writeMetrics("nifi_active_thread", "nifi_active_thread gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_ACTIVE_THREAD)
-	writeMetrics("nifi_total_queued_data", "nifi_total_queued_data gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_TOTAL_QUEUED_DATA)
-	writeMetrics("nifi_running_components", "nifi_running_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_RUNNING_COMPONENTS)
-	writeMetrics("nifi_stopped_components", "nifi_stopped_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_STOPPED_COMPONENTS)
-	writeMetrics("nifi_invalid_components", "nifi_invalid_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_INVALID_COMPONENTS)
-	writeMetrics("nifi_disabled_components", "nifi_disabled_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_DISABLED_COMPONENTS)
-	writeMetrics("nifi_up_to_date_versioned_process_groups", "nifi_up_to_date_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_UP_TO_DATE_VERSIONED_PROCESS_GROUPS)
-	writeMetrics("nifi_locally_modified_versioned_process_groups", "nifi_locally_modified_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_LOCALLY_MODIFIED_VERSIONED_PROCESS_GROUPS)
-	writeMetrics("nifi_stale_versioned_process_groups", "nifi_stale_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_STALE_VERSIONED_PROCESS_GROUPS)
-	writeMetrics("nifi_locally_modified_and_stale_versioned_process_groups", "nifi_locally_modified_and_stale_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_LOCALLY_MODIFIED_AND_STALE_VERSIONED_PROCESS_GROUPS)
-	writeMetrics("nifi_sync_failure_versioned_process_groups", "nifi_sync_failure_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_SYNC_FAILURE_VERSIONED_PROCESS_GROUPS)
+	metrics.WriteMetrics("nifi_cluster_status", "0=UP, 1=DOWN gauge", "gauge", "{ nifi_uri=\""+clusterUrl+"\"}", "{ nifi_uri=\""+clusterUrl+"\"}", NIFI_CLUSTER_STATUS)
+	metrics.WriteMetrics("nifi_active_thread", "nifi_active_thread gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_ACTIVE_THREAD)
+	metrics.WriteMetrics("nifi_total_queued_data", "nifi_total_queued_data gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_TOTAL_QUEUED_DATA)
+	metrics.WriteMetrics("nifi_running_components", "nifi_running_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_RUNNING_COMPONENTS)
+	metrics.WriteMetrics("nifi_stopped_components", "nifi_stopped_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_STOPPED_COMPONENTS)
+	metrics.WriteMetrics("nifi_invalid_components", "nifi_invalid_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_INVALID_COMPONENTS)
+	metrics.WriteMetrics("nifi_disabled_components", "nifi_disabled_components gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_DISABLED_COMPONENTS)
+	metrics.WriteMetrics("nifi_up_to_date_versioned_process_groups", "nifi_up_to_date_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_UP_TO_DATE_VERSIONED_PROCESS_GROUPS)
+	metrics.WriteMetrics("nifi_locally_modified_versioned_process_groups", "nifi_locally_modified_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_LOCALLY_MODIFIED_VERSIONED_PROCESS_GROUPS)
+	metrics.WriteMetrics("nifi_stale_versioned_process_groups", "nifi_stale_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_STALE_VERSIONED_PROCESS_GROUPS)
+	metrics.WriteMetrics("nifi_locally_modified_and_stale_versioned_process_groups", "nifi_locally_modified_and_stale_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_LOCALLY_MODIFIED_AND_STALE_VERSIONED_PROCESS_GROUPS)
+	metrics.WriteMetrics("nifi_sync_failure_versioned_process_groups", "nifi_sync_failure_versioned_process_groups gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_SYNC_FAILURE_VERSIONED_PROCESS_GROUPS)
 }
 
 func NifiFlowClusterSummary(
@@ -140,8 +141,8 @@ func NifiFlowClusterSummary(
 			NIFI_CLUSTER_TOTAL_NODE = strconv.Itoa(nifiFlowClusterSummary.ClusterSummary.TotalNodeCount)
 	}
 	
-	writeMetrics("nifi_cluster_connected_node", "nifi_cluster_connected_node gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_CLUSTER_CONNECTED_NODE)
-	writeMetrics("nifi_cluster_total_node", "nifi_cluster_total_node gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_CLUSTER_TOTAL_NODE)
+	metrics.WriteMetrics("nifi_cluster_connected_node", "nifi_cluster_connected_node gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_CLUSTER_CONNECTED_NODE)
+	metrics.WriteMetrics("nifi_cluster_total_node", "nifi_cluster_total_node gauge", "gauge", COMMON_FIELD, COMMON_FIELD, NIFI_CLUSTER_TOTAL_NODE)
 }
 
 func NifiFlowPgRoot(
