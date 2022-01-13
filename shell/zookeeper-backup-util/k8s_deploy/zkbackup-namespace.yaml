@@ -1,0 +1,6 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: utility
+  labels:
+    env: wdcd01-uswest2

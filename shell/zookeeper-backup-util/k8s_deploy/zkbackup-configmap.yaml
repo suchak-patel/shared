@@ -1,0 +1,420 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: zkbackup-sh
+  namespace: utility
+  labels:
+    env: production
+    service: zkbackup-sh
+data:
+  zkBackup.sh: |
+    #!/bin/bash
+
+    DATE=$(date +%Y%m%d-%H%M)
+
+    # Defaults
+    ZK_CLI="./bin/zkcli"
+    LOCAL_OUTPUT_FILE="backup/@@ZK_DIR_PATH@@/${DATE}.json"
+    AWS_PROFILE="default"
+    AWS_S3BUCKET="default-zk-backup"
+
+    #
+    # Function simply prints out dashes for entire length of terminal screen
+    #
+    function spacer() {
+        printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    }
+
+    # --- helper functions for logs ---
+    info()
+    {
+        echo '[INFO] ' "$@"
+    }
+    
+    #
+    # Standard helper function showing user valid or acceptable options
+    #
+    function help_func() {
+        spacer
+        printf "%s\n" "$0 \"-action=<value>\" \"-zkCli=<value>\" \"-host=<value>\" \"-path=<value>\" \"-file=<value>\""
+        spacer
+        printf "%s\n" "Arguments"
+        spacer
+        printf "%s\n" "     -a -action=   [Required] [ Action to take ] [ backup_local | backup_s3 | restore ]"
+        printf "\n%s\n" "         $0 \"-cmd=backup_local\""
+        spacer
+        printf "%s\n" "     -c -zkCli= [Optional] [ zkCli path ] [Default: /var/local/zkcli]"
+        printf "\n%s\n" "         $0 \"-cmd=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\""
+        spacer
+        spacer
+        printf "%s\n" "     -h -host=  [Required] [ ZK host endpoint with port]"
+        printf "\n%s\n" "         $0 \"-cmd=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\""
+        spacer
+        printf "%s\n" "     -p -path=  [Required] [ ZK znode path ]"
+        printf "\n%s\n" "         $0 \"-cmd=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\" \"-path=/wazeedigital\""
+        spacer
+        printf "%s\n" "     -f -file=  [Optional] [ Which file to write? ]"
+        printf "\n%s\n" "         $0 \"-cmd=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\""
+        spacer
+        printf "%s\n" "     -w -awsProfile=  [Optional] [ AWS profile to use? ] [Default: default]"
+        printf "\n%s\n" "         $0 \"-cmd=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\" \"-awsProfile=default\""
+        spacer
+    }
+    
+    #
+    # Function checks that user did enter valid set of options and set variables accordingly
+    #
+    function get_opts() {
+        # read the options
+        TEMP=$(getopt -a -o m::a:c:h:p:f:w:s: --long help::,action:,zkCli:,host:,path:,file:,awsProfile:,s3Bucket: -- "$@")
+        eval set -- "$TEMP"
+        
+        # extract options and their arguments into variables.
+        while true ; do
+            #echo "$1 : $2"
+            case "$1" in
+                -m|--help)
+                    help_func; exit 0 ;;
+                -a|--action)
+                    ACTION=$(echo "$2" | tr '[:upper:]' '[:lower:]') ; shift 2;;
+                -c|--zkCli)
+                    case "$2" in
+                        "") ZK_CLI=$ZK_CLI ; shift 2 ;;
+                        *) ZK_CLI=$2 ; shift 2 ;;
+                    esac ;;
+                -h|--host)
+                    ZK_HOST="$2"; shift 2;;
+                -p|--path)
+                    ZNODE_PATH="$2"; shift 2;;
+                -f|--file)
+                    case "$2" in
+                        "") LOCAL_OUTPUT_FILE=$LOCAL_OUTPUT_FILE ; shift 2 ;;
+                        *) LOCAL_OUTPUT_FILE="$2"; shift 2;;
+                    esac ;;
+                -w|--awsProfile)
+                    case "$2" in
+                        "") AWS_PROFILE=$AWS_PROFILE ; shift 2 ;;
+                        *) AWS_PROFILE=$2 ; shift 2 ;;
+                    esac ;;
+                -s|--s3Bucket)
+                    case "$2" in
+                        "") AWS_S3BUCKET=$AWS_S3BUCKET ; shift 2 ;;
+                        *) AWS_S3BUCKET=$2 ; shift 2 ;;
+                    esac ;;
+                --) shift ; break ;;
+                *) echo "Internal error!" ; exit 1 ;;
+            esac
+        done
+    }
+
+    #
+    # Function does further varification of pass parms
+    #
+    function check_vars() {
+        if [[ -z $ACTION ]]; then
+            printf "%s\n" "Missing required var: -a "
+            help_func
+            exit 1
+        fi
+        if [[ -z $ZK_CLI ]]; then
+            printf "%s\n" "Missing required var: -c "
+            help_func
+            exit 1
+        fi
+        if [[ -z $ZNODE_PATH ]]; then
+            printf "%s\n" "Missing required var: -p "
+            help_func
+            exit 1
+        fi
+        if [[ -z $ZK_HOST ]]; then
+            printf "%s\n" "Missing required var: -h "
+            help_func
+            exit 1
+        fi
+        if [[ -z $LOCAL_OUTPUT_FILE ]]; then
+            printf "%s\n" "Missing required var: -f "
+            help_func
+            exit 1
+        fi
+        if [[ -z $AWS_S3BUCKET ]]; then
+            printf "%s\n" "Missing required var: -s "
+            help_func
+            exit 1
+        fi
+    }
+
+    #
+    # Setup the environment for required dependencies
+    #
+    set_env(){
+        local_output_file=$1
+        zk_host=$(echo "$2" | sed 's/:.*$//')
+        req_znode_path=$3
+        action=$4
+        zk_cli=$5
+        aws_s3bucket=$6
+
+        # Exporting some envirenment variables so can use them below
+        export ZK_CLI
+        export ZKC_SERVERS="$ZK_HOST"
+        export ZK_REQ_ZNODE_PATH="$ZNODE_PATH"
+
+        info "Installing dependency packages..."
+        {
+            # Determine which OS
+            which apt-get && APT_GET=true
+            which yum && YUM=true
+            
+            # Install jq wget
+            [ "$APT_GET" = "true" ] && sudo apt-get install -y jq wget tar
+            [ "$YUM" = "true" ] && sudo yum install -y jq wget tar
+        } &> /dev/null
+
+        # Download the zkCli if not using existing path
+        if [[ $zk_cli == "./bin/zkcli" ]] && [[ ! -f ./bin/zkcli ]]; then
+            info "Setting up the zkcli..."
+            [[ -d ./bin ]] || mkdir bin
+            wget -q https://github.com/suchak-upvision/zkcli/releases/download/v1.0.6-binary/zkcli-linux-amd64-binary.tar.gz -O /tmp/zkcli-linux-amd64-binary.tar.gz
+            tar -xf /tmp/zkcli-linux-amd64-binary.tar.gz -C ./bin/
+            mv ./bin/zkcli-*/zkcli ./bin/zkcli
+            rm -rf /tmp/zkcli-linux-amd64-binary.tar.gz ./bin/zkcli-*
+        fi
+
+        # Create a local backup directory
+        if [[ $local_output_file == "backup/@@ZK_DIR_PATH@@/${DATE}.json" ]]; then
+            info "Setting up the backup directory..."
+            if [[ $action == "backup_local" ]]; then
+                dir_path="${zk_host}${req_znode_path}"
+                LOCAL_OUTPUT_FILE=${local_output_file/@@ZK_DIR_PATH@@/$dir_path}
+                local_output_file_path=$(echo "$LOCAL_OUTPUT_FILE" | sed 's/\/[^/]*$//')
+                mkdir -p "$local_output_file_path"
+            else
+                [[ -d ./backup ]] && mv ./backup "./backup_${DATE}"
+                [[ -d ./backup ]] || mkdir ./backup
+                LOCAL_OUTPUT_FILE=${local_output_file/\/@@ZK_DIR_PATH@@/}
+
+                # Check if provided S3 bucket name is without key
+                if_key_included=$(echo "$aws_s3bucket" | grep -o "/" | wc -l)
+                if [[ $if_key_included -eq 0 ]]; then
+                    if [[ $req_znode_path == "/" ]]; then
+                        s3_key_path="${zk_host}"
+                    else
+                        s3_key_path="${zk_host}${req_znode_path}"
+                    fi
+                    AWS_S3BUCKET="${aws_s3bucket}/${s3_key_path}/"
+                fi
+
+                # Using IAM role for s3 access
+                # For now use AWS creds from ZK if profile not provided
+                #if [[ $AWS_PROFILE == "default" ]]; then
+                #    AWS_ACCESS_KEY_ID=$(get_znode "/wazeedigital/tmo/aws/accessKey")
+                #    AWS_SECRET_ACCESS_KEY=$(get_znode "/wazeedigital/tmo/aws/secretKey")
+                #    export AWS_ACCESS_KEY_ID
+                #    export AWS_SECRET_ACCESS_KEY
+                #fi
+            fi
+        fi
+
+        # Exporting remaining envirenment variables
+        export ZK_OUTPUT_FILE="$LOCAL_OUTPUT_FILE"
+        #export ZKC_FORMAT="json"
+        [[ $action == "backup_s3" ]] && export ZK_AWS_S3BUCKET="$AWS_S3BUCKET" && export ZK_AWS_PROFILE="$AWS_PROFILE"
+    }
+
+    #
+    # BACKUP ZK ZNODES
+    #
+    function backup_zk(){
+        znodePath=$1
+        
+        info "Generating base JSON file..."
+        generate_base_json "$ZKC_SERVERS" "$znodePath" "$ZK_OUTPUT_FILE"
+
+        info "Updating the Output JSON file..."
+        scan_recursively "$znodePath"
+
+        info "Generating the hash of Output JSON file..."
+        zk_output_file_hash=$(generate_hash "${ZK_OUTPUT_FILE}")
+        zk_output_hash_file=${ZK_OUTPUT_FILE/\.json/_"$zk_output_file_hash"}
+        echo "$zk_output_file_hash" > "$zk_output_hash_file"
+    }
+
+    #
+    # Generate base json
+    #
+    function generate_base_json(){
+        _zkHost=$1
+        _zkPath=$2
+        _zkOutputFile=$3
+        DATE_EPOCH=$(date +%s)
+        
+        cat > "${_zkOutputFile}" <<EOF
+    {
+      "request" : {
+        "params" : {
+          "zkHost" : "$_zkHost",
+          "path" : "$_zkPath",
+          "encodeValues" : "base64",
+          "recursive" : true
+        }
+      },
+      "response" : {}
+    }
+    EOF
+    }
+
+    #
+    # Execute command via varible
+    #
+    function execute_command() {
+        CMD="$*"
+        eval "$CMD"
+    }
+
+    #
+    # Get children 
+    #
+    function list_znodes(){
+        znodePath=$1
+
+        execute_command "$ZK_CLI" "ls" "$znodePath"
+    }
+
+    #
+    # Get znode value
+    #
+    function get_znode(){
+        znodePath=$1
+
+        execute_command "$ZK_CLI" "get" "$znodePath"
+    }
+
+    #
+    # Scan ZK recursively
+    #
+    function scan_recursively() 
+    {
+        # checking if the provided znode has any child
+        _CHILDREN=($(list_znodes "$1" ))
+        if [[ "${#_CHILDREN[@]}" -gt 0 ]]; then
+            # The current node does have children
+            has_children=true
+            _ZNODE_DATA=$(get_znode "$1")
+            update_json "$1" "$_ZNODE_DATA" "$has_children"
+            
+            for _CHILD in "${_CHILDREN[@]}"; do
+                scan_recursively "$1/$_CHILD"
+            done
+        else
+            # The current node doesn't have children
+            has_children=false
+            _ZNODE_DATA=$(get_znode "$1")
+            update_json "$1" "$_ZNODE_DATA" "$has_children"
+        fi
+    }
+
+    #
+    # Update JSON with latest scans
+    #
+    function update_json(){
+        znodePath=$1
+        znodeData=$(echo "$2" | base64)
+        has_children=$3
+
+        json_root_path="response"
+        
+        if [[ "$has_children" == "true" ]]; then
+            znodeJSON="{\"path\":\"$znodePath\",\"children\":[],\"data\":\"$znodeData\"}"
+        else
+            znodeJSON="{\"path\":\"$znodePath\",\"data\":\"$znodeData\"}"
+        fi
+
+        if [[ $znodePath == "$ZK_REQ_ZNODE_PATH" ]]; then
+            eval "jq '.${json_root_path} += ${znodeJSON}' ${ZK_OUTPUT_FILE}" > "${ZK_OUTPUT_FILE}.tmp" &&
+            mv "${ZK_OUTPUT_FILE}.tmp" "${ZK_OUTPUT_FILE}"
+        else
+            parent_znode_path=$(echo "$znodePath" | sed 's/\/[^/]*$//')
+            trim_znode_path=${znodePath//$ZK_REQ_ZNODE_PATH/}
+            json_znode_path="$json_root_path"
+            znode_path_arr=($(echo "$trim_znode_path" | tr '/' '\n'))
+            
+            if [ "$parent_znode_path" != "$ZK_REQ_ZNODE_PATH" ]; then
+                each_znode_path=$ZK_REQ_ZNODE_PATH
+                i=0
+                while [ $i -lt "${#znode_path_arr[@]}" ]; do
+                    each_znode_path="${each_znode_path}/${znode_path_arr[$i]}"
+                    if [ "$i" == "$(echo "$trim_znode_path" | awk -F"/" '{print NF-2}')" ]; then
+                        json_znode_path="$json_znode_path.children[]"
+                    else
+                        json_znode_path="$json_znode_path.children[]?"
+                        json_znode_path_for_index="$json_znode_path"
+                        if [ $i == "0" ]; then
+                            json_znode_path_with_index=${json_znode_path//\?/}
+                        else
+                            json_znode_path_with_index="$json_znode_path_with_index.children[]"
+                            json_znode_path_for_index=${json_znode_path_for_index%.*}
+                            json_znode_path_for_index="${json_znode_path_for_index} | select(.path == \"$(echo "$each_znode_path" | sed 's/\/[^/]*$//')\") | .children[]"
+                        fi
+                        current_znode_path_index=$(eval "jq '[ .${json_znode_path_for_index}.path == \"${each_znode_path}\"] | index(true)' ${ZK_OUTPUT_FILE}")
+                        json_znode_path_with_index=${json_znode_path_with_index/[]/[$current_znode_path_index]}
+                    fi
+                    ((i++))
+                done
+            else
+                json_znode_path_with_index="${json_znode_path}"
+            fi
+
+            eval "jq '.${json_znode_path_with_index}.children += [${znodeJSON}]' ${ZK_OUTPUT_FILE}" > "${ZK_OUTPUT_FILE}.tmp" &&
+            mv "${ZK_OUTPUT_FILE}.tmp" "${ZK_OUTPUT_FILE}"
+        fi
+    }
+
+    #
+    # Upload JSON file to S3
+    #
+    upload_json_to_s3(){
+        info "Uploading Output JSON file to s3://$ZK_AWS_S3BUCKET..."
+        files_to_upload=$(echo "$ZK_OUTPUT_FILE" | sed 's/\/[^/]*$//')
+        #files_to_upload=${ZK_OUTPUT_FILE/\.json/*}
+        if [[ $AWS_PROFILE == "default" ]]; then
+            aws s3 cp "$files_to_upload" "s3://$ZK_AWS_S3BUCKET" --recursive
+        else
+            aws s3 cp "$files_to_upload" "s3://$ZK_AWS_S3BUCKET" --recursive --profile "$ZK_AWS_PROFILE"
+        fi
+    }
+
+    #
+    # Generate the sha256 checksum of json file
+    #
+    generate_hash(){
+        file_to_hash=$1
+        
+        # We are using sha256 hashing
+        get_hash=$(sha256sum "$file_to_hash" | awk '{print $1}')
+        echo "$get_hash"
+    }
+
+    main(){
+        get_opts "$@"
+        check_vars
+        echo "$AWS_S3BUCKET"
+        set_env "$LOCAL_OUTPUT_FILE" "$ZK_HOST" "$ZNODE_PATH" "$ACTION" "$ZK_CLI" "$AWS_S3BUCKET"
+
+        env | grep "ZK"
+        
+        case "$ACTION" in
+            "backup_local") backup_zk "$ZNODE_PATH" 
+                ;;
+            "backup_s3") backup_zk "$ZNODE_PATH"
+                upload_json_to_s3
+                ;;
+            "restore") restore_zk
+                ;;
+            *) echo "Work in progress!" ;;
+        esac
+    }
+    
+    #
+    # Now we just run main() with all pass parms
+    #
+    main "$@"

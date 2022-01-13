@@ -1,0 +1,40 @@
+kind: CronJob
+apiVersion: batch/v1beta1
+metadata:
+  name: zkbackup-sh
+  namespace: utility
+  labels:
+    env: production
+    service: zkbackup-sh
+spec:
+  schedule: "30 02 * * *"
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            env: production
+            service: zkbackup-sh
+        spec:
+          serviceAccountName: zkbackup-sh
+          containers:
+          - name: zkbackup-sh
+            image: suchak145/alpine:alpine-3.14-aws-cli
+            imagePullPolicy: Always
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "0.10"
+            command: ["/opt/zkBackup.sh"]
+            args: ["-a", "backup_s3", "-h", "zookeeper01.DNS", "-p", "/", "-s", "S3-bucket-name"]
+            volumeMounts:
+            - name: zkbackup-sh
+              mountPath: /opt
+          volumes:
+          - name: zkbackup-sh
+            configMap:
+              name: zkbackup-sh
+              defaultMode: 0755
+          restartPolicy: OnFailure
