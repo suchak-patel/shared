@@ -3,4 +3,4 @@ I have created this repository to share some work I have done to workaround the 
 - [Golang](https://github.com/suchak-upvision/shared/tree/master/go)
   - [prom-metrics-generator](https://github.com/suchak-upvision/shared/tree/master/go/prom-metrics-generator)
 - [Shell](https://github.com/suchak-upvision/shared/tree/master/shell)
-  - [prom-metrics-generator](https://github.com/suchak-upvision/shared/tree/master/shell/zookeeper-backup-tool)
+  - [zookeeper-backup-util](https://github.com/suchak-upvision/shared/tree/master/shell/zookeeper-backup-tool)
