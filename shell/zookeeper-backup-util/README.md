@@ -37,15 +37,15 @@ The script has help command which describes the usage of individual command argu
 Below are a few very common use cases,
 1. Backup ZK locally,
     ```sh
-    ./zkBackup.sh -a backup_local  -h zookeeper01.wdcd01.uswest2.veritone.com -p /wazeedigital/tmo/aws 
+    ./zkBackup.sh -a backup_local  -h zookeeper.DNS:PORT -p /wazeedigital/tmo/aws 
     ```
-    The above command will backup the ZK path */wazeedigital/tmo/aws* recursively from *zookeeper01.wdcd01.uswest2.veritone.com* and store the JSON file into `./backup/zookeeper01.wdcd01.uswest2.veritone.com/wazeedigital/tmo/aws`. The JSON file will be timestamped with *YYYYMMDD-HHMM.json* and hash will resides at same directory.
+    The above command will backup the ZK path */wazeedigital/tmo/aws* recursively from *zookeeper.DNS:PORT* and store the JSON file into `./backup/zookeeper.DNS:PORT/wazeedigital/tmo/aws`. The JSON file will be timestamped with *YYYYMMDD-HHMM.json* and hash will resides at same directory.
 
 2. Backup ZK to S3,
     ```sh
-    ./zkBackup.sh -a backup_s3  -h zookeeper01.wdcd01.uswest2.veritone.com -p /wazeedigital/tmo/aws -s wdcd01-uswest2-zkbackup -w wdcd01-uswest2
+    ./zkBackup.sh -a backup_s3  -h zookeeper.DNS:PORT -p /wazeedigital/tmo/aws -s aws-zkbackup-s3 -w aws_profile
     ```
-    The above command will generate the JSON and hash files into `./backup/` directory and push it to remote S3 bucket, *wdcd01-uswest2-zkbackup*, using *wdcd01-uswest2* AWS profile. If we use `iam-role` as AWS profile with `-w` flag, it will omit the use of `--profile` and will attempt to use IAM-role/ec2-role.
+    The above command will generate the JSON and hash files into `./backup/` directory and push it to remote S3 bucket, *aws-zkbackup-s3*, using *aws_profile* AWS profile. If we use `iam-role` as AWS profile with `-w` flag, it will omit the use of `--profile` and will attempt to use IAM-role/ec2-role.
 
 ## Deployment strategy
 Again, we can use the script in multiple way to automate the backup/restore process. One way is to run the script as cronjob from Jumpbox server. Secondly, we can have script running on one of the ZK node itself.
@@ -79,13 +79,13 @@ For our use case I have setup the script as Kubernetes cronjob to run once every
         }
     ```
 #### k8s templates
-We will have to create few k8s resources to setup script as cronjob in k8s. I have already uploaded the sample k8s templates to remote GitHub repository, [K8S Templates](https://github.com/veritone/DevOps/tree/master/utils/zookeeper/k8s_deploy).
+We will have to create few k8s resources to setup script as cronjob in k8s. I have already uploaded the sample k8s templates to remote GitHub repository, [K8S Templates](https://github.com/suchak-upvision/shared/tree/master/shell/zookeeper-backup-util/k8s_deploy).
 
 Make sure to replace the following values into template as per your environment's values,
 - `env` label in all files
-- [zkbackup-cronjob.yaml](https://github.com/veritone/DevOps/blob/master/utils/zookeeper/k8s_deploy/zkbackup-cronjob.yaml)
+- [zkbackup-cronjob.yaml](https://github.com/suchak-upvision/shared/tree/master/shell/zookeeper-backup-util/k8s_deploy/zkbackup-cronjob.yaml)
   - `schedule` for cronjob inside 
   - `image` to use <-- I have used custom alpine image having all the dependencies installed
   - `args` to use for script
-- [zkbackup-service-account.yaml](https://github.com/veritone/DevOps/blob/master/utils/zookeeper/k8s_deploy/zkbackup-service-account.yaml)
+- [zkbackup-service-account.yaml](https://github.com/suchak-upvision/shared/tree/master/shell/zookeeper-backup-util/k8s_deploy/zkbackup-service-account.yaml)
   - `eks.amazonaws.com/role-arn` annotation to update with your iam-role arn

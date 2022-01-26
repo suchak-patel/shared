@@ -11,6 +11,7 @@ ZK_CLI="./bin/zkcli"
 LOCAL_OUTPUT_FILE="backup/@@ZK_DIR_PATH@@/${DATE}.json"
 AWS_PROFILE="default"
 AWS_S3BUCKET="default-zk-backup"
+DATA_ENCODING="base64"
 
 #
 # Function simply prints out dashes for entire length of terminal screen
@@ -24,7 +25,7 @@ info()
 {
     echo '[INFO] ' "$@"
 }
- 
+
 #
 # Standard helper function showing user valid or acceptable options
 #
@@ -42,28 +43,31 @@ function help_func() {
     spacer
     spacer
     printf "%s\n" "     -h -host=  [Required] [ ZK host endpoint with port]"
-    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\""
+    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeeper.DNS:PORT\""
     spacer
     printf "%s\n" "     -p -path=  [Required] [ ZK znode path ]"
-    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\" \"-path=/wazeedigital\""
+    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeeper.DNS:PORT\" \"-path=/wazeedigital\""
     spacer
     printf "%s\n" "     -f -file=  [Optional] [ Which file to write? ]"
-    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\""
+    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeeper.DNS:PORT\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\""
     spacer
     printf "%s\n" "     -w -awsProfile=  [Optional] [ AWS profile to use? ] [Default: default]"
-    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\" \"-awsProfile=default\""
+    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeeper.DNS:PORT\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\" \"-awsProfile=default\""
     spacer
     printf "%s\n" "     -s -s3Bucket=  [Optional] [ If backup_s3 than which S3 bucket to use? ] [Default: default-zk-backup]"
-    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeepera.wdcd01.uswest2.veritone.com:2181\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\" \"-awsProfile=default\" \"-s3Bucket=wdcd01-uswest2-zkbackup\""
+    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeeper.DNS:PORT\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\" \"-awsProfile=default\" \"-s3Bucket=default-zk-backup\""
+    spacer
+    printf "%s\n" "     -e -encoding=  [Optional] [ Which encoding algorithm to use for ZNODE value in json? ] [Default: base64]"
+    printf "\n%s\n" "         $0 \"-action=backup\" \"-zkCli=/opt/app/zookeeper/bin/zkCli.sh\" \"-host=zookeeper.DNS:PORT\" \"-path=/wazeedigital\" \"-file=/tmp/test.json\" \"-awsProfile=default\" \"-s3Bucket=default-zk-backup\" \"-encoding=base64\""
     spacer
 }
- 
+
 #
 # Function checks that user did enter valid set of options and set variables accordingly
 #
 function get_opts() {
     # read the options
-    TEMP=$(getopt -a -o m::a:c:h:p:f:w:s: --long help::,action:,zkCli:,host:,path:,file:,awsProfile:,s3Bucket: -- "$@")
+    TEMP=$(getopt -a -o m::a:c:h:p:f:w:s:e: --long help::,action:,zkCli:,host:,path:,file:,awsProfile:,s3Bucket:,encoding: -- "$@")
     eval set -- "$TEMP"
     
     # extract options and their arguments into variables.
@@ -77,7 +81,7 @@ function get_opts() {
             -c|--zkCli)
                 case "$2" in
                     "") ZK_CLI=$ZK_CLI ; shift 2 ;;
-                     *) ZK_CLI=$2 ; shift 2 ;;
+                    *) ZK_CLI=$2 ; shift 2 ;;
                 esac ;;
             -h|--host)
                 ZK_HOST="$2"; shift 2;;
@@ -86,17 +90,22 @@ function get_opts() {
             -f|--file)
                 case "$2" in
                     "") LOCAL_OUTPUT_FILE=$LOCAL_OUTPUT_FILE ; shift 2 ;;
-                     *) LOCAL_OUTPUT_FILE="$2"; shift 2;;
+                    *) LOCAL_OUTPUT_FILE="$2"; shift 2;;
                 esac ;;
             -w|--awsProfile)
                 case "$2" in
                     "") AWS_PROFILE=$AWS_PROFILE ; shift 2 ;;
-                     *) AWS_PROFILE=$2 ; shift 2 ;;
+                    *) AWS_PROFILE=$2 ; shift 2 ;;
                 esac ;;
             -s|--s3Bucket)
                 case "$2" in
                     "") AWS_S3BUCKET=$AWS_S3BUCKET ; shift 2 ;;
-                     *) AWS_S3BUCKET=$2 ; shift 2 ;;
+                    *) AWS_S3BUCKET=$2 ; shift 2 ;;
+                esac ;;
+        -e|--encoding)
+                case "$2" in
+                    "") DATA_ENCODING=$DATA_ENCODING ; shift 2 ;;
+                    *) DATA_ENCODING=$2 ; shift 2 ;;
                 esac ;;
             --) shift ; break ;;
             *) echo "Internal error!" ; exit 1 ;;
@@ -150,6 +159,7 @@ set_env(){
     action=$4
     zk_cli=$5
     aws_s3bucket=$6
+    data_encoding=$7
 
     # Exporting some envirenment variables so can use them below
     export ZK_CLI
@@ -202,17 +212,18 @@ set_env(){
             fi
 
             # For now use AWS creds from ZK if profile not provided
-            if [[ $AWS_PROFILE == "default" ]]; then
-                AWS_ACCESS_KEY_ID=$(get_znode "/wazeedigital/tmo/aws/accessKey")
-                AWS_SECRET_ACCESS_KEY=$(get_znode "/wazeedigital/tmo/aws/secretKey")
-                export AWS_ACCESS_KEY_ID
-                export AWS_SECRET_ACCESS_KEY
-            fi
+            # if [[ $AWS_PROFILE == "default" ]]; then
+            #     AWS_ACCESS_KEY_ID=$(get_znode "/wazeedigital/tmo/aws/accessKey")
+            #     AWS_SECRET_ACCESS_KEY=$(get_znode "/wazeedigital/tmo/aws/secretKey")
+            #     export AWS_ACCESS_KEY_ID
+            #     export AWS_SECRET_ACCESS_KEY
+            # fi
         fi
     fi
 
     # Exporting remaining envirenment variables
     export ZK_OUTPUT_FILE="$LOCAL_OUTPUT_FILE"
+    export DATA_ENCODING="$DATA_ENCODING"
     #export ZKC_FORMAT="json"
     [[ $action == "backup_s3" ]] && export ZK_AWS_S3BUCKET="$AWS_S3BUCKET" && export ZK_AWS_PROFILE="$AWS_PROFILE"
 }
@@ -246,15 +257,15 @@ function generate_base_json(){
     
     cat > "${_zkOutputFile}" <<EOF
 {
-  "request" : {
+"request" : {
     "params" : {
-      "zkHost" : "$_zkHost",
-      "path" : "$_zkPath",
-      "encodeValues" : "base64",
-      "recursive" : true
+    "zkHost" : "$_zkHost",
+    "path" : "$_zkPath",
+    "encodeValues" : "$DATA_ENCODING",
+    "recursive" : true
     }
-  },
-  "response" : {}
+},
+"response" : {}
 }
 EOF
 }
@@ -314,7 +325,7 @@ function scan_recursively()
 #
 function update_json(){
     znodePath=$1
-    znodeData=$(echo "$2" | base64)
+    [[ "$DATA_ENCODING" == "base64" ]] && znodeData=$(echo "$2" | base64) ||  znodeData="$2"
     has_children=$3
 
     json_root_path="response"
@@ -393,8 +404,7 @@ generate_hash(){
 main(){
     get_opts "$@"
     check_vars
-    echo "$AWS_S3BUCKET"
-    set_env "$LOCAL_OUTPUT_FILE" "$ZK_HOST" "$ZNODE_PATH" "$ACTION" "$ZK_CLI" "$AWS_S3BUCKET"
+    set_env "$LOCAL_OUTPUT_FILE" "$ZK_HOST" "$ZNODE_PATH" "$ACTION" "$ZK_CLI" "$AWS_S3BUCKET" "$DATA_ENCODING"
 
     env | grep "ZK"
     
@@ -409,7 +419,7 @@ main(){
         *) echo "Work in progress!" ;;
     esac
 }
- 
+
 #
 # Now we just run main() with all pass parms
 #
