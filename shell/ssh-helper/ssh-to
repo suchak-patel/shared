@@ -1,0 +1,125 @@
+#!/bin/bash
+#
+# ------------------------------------------------------------------------------------------------------ #
+# ssh-to
+# Helps retrive the IP based on server name and ssh to server.
+# ------------------------------------------------------------------------------------------------------ #
+# Author: Suchak Patel
+# Usage: ./ssh-to --help
+# ------------------------------------------------------------------------------------------------------ #
+
+
+TOKEN="32215f764760c48cd5f1c02b2a0b867086d9c09f13f16be2a87b9b69ad40a645"
+PATH_TO_SSH="$HOME/.ssh/fulcrum-do-20201214"
+ipType="public"
+sshUser="root"
+cloudProvider="do"
+
+spacer() {
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+}
+
+help_func() {
+    spacer
+    printf "%s\n" "$0 \"-cloud=<value>\" \"-server=<value>\" \"-sshKey=<value>\" \"-ipType=<value>\" \"-sshUser=<value>\" \"-token=<value>\""
+    spacer
+    printf "%s\n" "Arguments"
+    spacer
+    printf "%s\n" "     -cloud=            [ Which cloud provider we are targeting? (Default is DigitalOcean) [optional]"
+    printf "\n%s\n" "         $0 \"-cloud=aws\""
+    spacer
+    printf "%s\n" "     -server=           [ Name of the server/droplet?"
+    printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\""
+    spacer
+    printf "%s\n" "     -sshKey=           [ Path of ssh key to use (Default is $HOME/.ssh/fulcrum-do-20201214) ] [optional]"
+    printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\" \"-sshKey=~/.ssh/other_key\""
+    spacer
+    printf "%s\n" "     -ipType=           [ Which IP type to use, private or public? (Default is public) ] [optional]"
+    printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\" \"-sshKey=~/.ssh/other_key\" \"-ipType=private\""
+    spacer
+    printf "%s\n" "     -sshUser=          [ SSH as which user? (Default is root) ] [optional]"
+    printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\" \"-sshKey=~/.ssh/other_key\" \"-ipType=private\" \"-sshUser=user\""
+    spacer
+    printf "%s\n" "     -token=          [ Access Token/key ] [optional]"
+    printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\" \"-sshKey=~/.ssh/other_key\" \"-ipType=private\" \"-sshUser=user\ \"-token=yzho1s575w03fst4fke3yyo22gs8l19klr2w1aerd22923e2a95lmi1grkfk\""
+    spacer
+}
+
+get_opts() {
+    # read the options
+    TEMP=$(getopt -a -o h::c::s:k::i::u::t:: --long help::,cloud::,server:,sshKey::,ipType::,sshUser::,token:: -- "$@")
+    eval set -- "$TEMP"
+
+    # extract options and their arguments into variables.
+    while true ; do
+        case "$1" in
+            -h|--help)
+                help_func; exit 0 ;;
+            -c|--cloud)
+                case "$2" in
+                    "") cloudProvider=$cloudProvider ; shift 2 ;;
+                     *) cloudProvider=$(echo "$2" | tr '[:upper:]' '[:lower:]') ; shift 2 ;;
+                esac ;;
+            -s|--server)
+                server_name=$(echo "$2" | tr '[:upper:]' '[:lower:]') ; shift 2;;
+            -k|--sshKey)
+                case "$2" in
+                    "") PATH_TO_SSH=$PATH_TO_SSH ; shift 2 ;;
+                     *) PATH_TO_SSH=$(echo "$2" | tr '[:upper:]' '[:lower:]') ; shift 2 ;;
+                esac ;;
+            -i|--ipType)
+                case "$2" in
+                    "") ipType=$ipType ; shift 2 ;;
+                     *) ipType=$(echo "$2" | tr '[:upper:]' '[:lower:]') ; shift 2 ;;
+                esac ;;
+            -u|--sshUser)
+                case "$2" in
+                    "") sshUser=$sshUser ; shift 2 ;;
+                     *) sshUser=$(echo "$2" | tr '[:upper:]' '[:lower:]') ; shift 2 ;;
+                esac ;;
+            -t|--token)
+                case "$2" in
+                    "") TOKEN=$TOKEN ; shift 2 ;;
+                     *) TOKEN=$2 ; shift 2 ;;
+                esac ;;
+            --) shift ; break ;;
+             *) echo "Internal error!" ; exit 1 ;;
+        esac
+    done
+}
+
+do_get_ip(){
+    if [[ $ipType == "public" ]]; then
+        droplet_ip=$(curl -s -X GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" "https://api.digitalocean.com/v2/droplets" | jq --arg val "$server_name" -r '.droplets[] | select(.name | test($val)).networks.v4[1].ip_address')
+    else
+        droplet_ip=$(curl -s -X GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" "https://api.digitalocean.com/v2/droplets" | jq --arg val "$server_name" -r '.droplets[] | select(.name | test($val)).networks.v4[0].ip_address')
+    fi
+
+    echo "$droplet_ip"
+}
+
+aws_get_ip(){
+    echo "TODO"
+}
+
+main(){
+    get_opts "$@"
+
+    case $cloudProvider in
+      do )
+        SERVER_IP=$(do_get_ip "$server_name")
+        ;;
+      aws )
+        SERVER_IP=$(aws_get_ip "$server_name")
+        ;;
+      * )
+        echo "Cloud provider is not supported."
+        ;;
+    esac
+    
+    ssh -i "${PATH_TO_SSH}" "${sshUser}"@"$SERVER_IP"
+
+}
+
+main "$@"
+
