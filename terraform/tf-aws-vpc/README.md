@@ -1,0 +1,3 @@
+Basic AWS networking setup as shown in below image...
+
+![AWS Basic Networking](https://docs.aws.amazon.com/images/vpc/latest/userguide/images/vpc-migrate-ipv6_updated.png)
