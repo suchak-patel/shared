@@ -9,7 +9,7 @@
 # ------------------------------------------------------------------------------------------------------ #
 
 
-TOKEN="32215f764760c48cd5f1c02b2a0b867086d9c09f13f16be2a87b9b69ad40a645"
+TOKEN="2bufokwqgz1cu865cq4h3vmruxz9g7wnczwr37dilgmhos1oa9r2swmbenrel70l7c"
 PATH_TO_SSH="$HOME/.ssh/fulcrum-do-20201214"
 ipType="public"
 sshUser="root"
@@ -41,7 +41,7 @@ help_func() {
     printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\" \"-sshKey=~/.ssh/other_key\" \"-ipType=private\" \"-sshUser=user\""
     spacer
     printf "%s\n" "     -token=          [ Access Token/key ] [optional]"
-    printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\" \"-sshKey=~/.ssh/other_key\" \"-ipType=private\" \"-sshUser=user\ \"-token=yzho1s575w03fst4fke3yyo22gs8l19klr2w1aerd22923e2a95lmi1grkfk\""
+    printf "\n%s\n" "         $0 \"-cloud=aws\" \"-server=hyp-v2-neo-02\" \"-sshKey=~/.ssh/other_key\" \"-ipType=private\" \"-sshUser=user\ \"-token=2bufokwqgz1cu865cq4h3vmruxz9g7wnczwr37dilgmhos1oa9r2swmbenrel70l7c\""
     spacer
 }
 
